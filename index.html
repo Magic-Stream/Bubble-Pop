@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Bubble Pop</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .game-header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            font-weight: 600;
+        }
+
+        .score {
+            font-size: 18px;
+        }
+
+        .level {
+            font-size: 16px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 5px 10px;
+            border-radius: 15px;
+        }
+
+        .game-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bubble {
+            position: absolute;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.1s ease;
+            animation: float 3s ease-in-out infinite;
+        }
+
+        .bubble:active {
+            transform: scale(0.9);
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(180deg); }
+        }
+
+        @keyframes pop {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.7; }
+            100% { transform: scale(0); opacity: 0; }
+        }
+
+        @keyframes spawn {
+            0% { transform: scale(0); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .bubble.popping {
+            animation: pop 0.3s ease-out forwards;
+        }
+
+        .bubble.spawning {
+            animation: spawn 0.3s ease-out forwards;
+        }
+
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .game-over.show {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .game-over h2 {
+            font-size: 32px;
+            margin-bottom: 20px;
+            color: #ff6b6b;
+        }
+
+        .game-over p {
+            font-size: 18px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .restart-btn {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .restart-btn:active {
+            transform: scale(0.95);
+        }
+
+        .particles {
+            position: absolute;
+            pointer-events: none;
+        }
+
+        .particle {
+            position: absolute;
+            width: 6px;
+            height: 6px;
+            background: #fff;
+            border-radius: 50%;
+            animation: particle-explode 0.6s ease-out forwards;
+        }
+
+        @keyframes particle-explode {
+            0% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(0) translate(var(--dx), var(--dy));
+                opacity: 0;
+            }
+        }
+
+        .combo {
+            position: absolute;
+            color: #ffd700;
+            font-size: 24px;
+            font-weight: bold;
+            pointer-events: none;
+            animation: combo-float 1s ease-out forwards;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .level-up {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(45deg, #ffd700, #ff6b6b);
+            color: white;
+            font-size: 28px;
+            font-weight: bold;
+            padding: 20px 40px;
+            border-radius: 20px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            pointer-events: none;
+            animation: level-up-animation 2s ease-out forwards;
+            z-index: 100;
+            text-align: center;
+        }
+
+        @keyframes level-up-animation {
+            0% {
+                transform: translate(-50%, -50%) scale(0.5);
+                opacity: 0;
+            }
+            20% {
+                transform: translate(-50%, -50%) scale(1.2);
+                opacity: 1;
+            }
+            80% {
+                transform: translate(-50%, -50%) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(0.8);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-header">
+        <div class="score">Score: <span id="score">0</span></div>
+        <div class="level">Level <span id="level">1</span></div>
+        <div class="score">Time: <span id="timer">60</span>s</div>
+    </div>
+
+    <div class="game-container" id="gameContainer"></div>
+
+    <div class="game-over" id="gameOver">
+        <h2>Game Over!</h2>
+        <p>Your Score: <span id="finalScore">0</span></p>
+        <p>Level Reached: <span id="finalLevel">1</span></p>
+        <button class="restart-btn" onclick="restartGame()">Play Again</button>
+    </div>
+
+    <script>
+        class BubblePopGame {
+            constructor() {
+                this.score = 0;
+                this.level = 1;
+                this.timeLeft = 60;
+                this.bubbles = [];
+                this.gameContainer = document.getElementById('gameContainer');
+                this.gameRunning = false;
+                this.bubbleSpeed = 2000;
+                this.maxBubbles = 5;
+                this.combo = 0;
+                this.lastPopTime = 0;
+                
+                this.colors = [
+                    '#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24',
+                    '#f0932b', '#eb4d4b', '#6c5ce7', '#fd79a8',
+                    '#00b894', '#fdcb6e', '#e17055', '#74b9ff'
+                ];
+                
+                this.audioContext = null;
+                this.soundsEnabled = true;
+                this.initAudio();
+                this.init();
+            }
+
+            init() {
+                this.startGame();
+                this.setupEventListeners();
+            }
+
+            initAudio() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (e) {
+                    console.log('Audio not supported');
+                    this.soundsEnabled = false;
+                }
+            }
+
+            playSound(frequency, duration, type = 'sine', volume = 0.1) {
+                if (!this.soundsEnabled || !this.audioContext) return;
+                
+                try {
+                    // Resume audio context if suspended (required for mobile)
+                    if (this.audioContext.state === 'suspended') {
+                        this.audioContext.resume();
+                    }
+                    
+                    const oscillator = this.audioContext.createOscillator();
+                    const gainNode = this.audioContext.createGain();
+                    
+                    oscillator.connect(gainNode);
+                    gainNode.connect(this.audioContext.destination);
+                    
+                    oscillator.type = type;
+                    oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+                    
+                    gainNode.gain.setValueAtTime(volume, this.audioContext.currentTime);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, this.audioContext.currentTime + duration);
+                    
+                    oscillator.start(this.audioContext.currentTime);
+                    oscillator.stop(this.audioContext.currentTime + duration);
+                } catch (e) {
+                    console.log('Error playing sound:', e);
+                }
+            }
+
+            playPopSound(bubbleSize) {
+                // Higher pitch for smaller bubbles, lower pitch for larger bubbles
+                const frequency = 800 - (bubbleSize * 4) + Math.random() * 100;
+                this.playSound(frequency, 0.1, 'sine', 0.15);
+            }
+
+            playComboSound(comboLevel) {
+                // Rising pitch sequence for combos
+                const baseFreq = 400 + (comboLevel * 100);
+                this.playSound(baseFreq, 0.15, 'triangle', 0.2);
+                
+                setTimeout(() => {
+                    this.playSound(baseFreq + 200, 0.1, 'triangle', 0.15);
+                }, 50);
+            }
+
+            playLevelUpSound() {
+                // Triumphant level up sound
+                const notes = [440, 554, 659, 880]; // A, C#, E, A octave
+                notes.forEach((freq, index) => {
+                    setTimeout(() => {
+                        this.playSound(freq, 0.3, 'triangle', 0.2);
+                    }, index * 100);
+                });
+            }
+
+            playGameOverSound() {
+                // Descending game over sound
+                const notes = [523, 440, 349, 262]; // C, A, F, C
+                notes.forEach((freq, index) => {
+                    setTimeout(() => {
+                        this.playSound(freq, 0.4, 'sawtooth', 0.15);
+                    }, index * 200);
+                });
+            }
+
+            playTickSound() {
+                // Low tick sound for timer
+                this.playSound(200, 0.05, 'square', 0.05);
+            }
+
+            setupEventListeners() {
+                this.gameContainer.addEventListener('touchstart', this.handleTouch.bind(this), { passive: false });
+                this.gameContainer.addEventListener('click', this.handleClick.bind(this));
+            }
+
+            handleTouch(e) {
+                e.preventDefault();
+                
+                // Enable audio on first touch (required for mobile browsers)
+                if (this.audioContext && this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+                
+                const touch = e.touches[0];
+                this.handleBubbleClick(touch.clientX, touch.clientY);
+            }
+
+            handleClick(e) {
+                // Enable audio on first click
+                if (this.audioContext && this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+                
+                this.handleBubbleClick(e.clientX, e.clientY);
+            }
+
+            handleBubbleClick(x, y) {
+                if (!this.gameRunning) return;
+
+                const clickedBubble = this.getBubbleAtPosition(x, y);
+                if (clickedBubble) {
+                    this.popBubble(clickedBubble);
+                }
+            }
+
+            getBubbleAtPosition(x, y) {
+                const rect = this.gameContainer.getBoundingClientRect();
+                const relativeX = x - rect.left;
+                const relativeY = y - rect.top;
+
+                return this.bubbles.find(bubble => {
+                    const bubbleRect = bubble.element.getBoundingClientRect();
+                    const bubbleX = bubbleRect.left - rect.left + bubbleRect.width / 2;
+                    const bubbleY = bubbleRect.top - rect.top + bubbleRect.height / 2;
+                    const distance = Math.sqrt(
+                        Math.pow(relativeX - bubbleX, 2) + 
+                        Math.pow(relativeY - bubbleY, 2)
+                    );
+                    return distance < bubble.size / 2;
+                });
+            }
+
+            startGame() {
+                this.gameRunning = true;
+                this.score = 0;
+                this.level = 1;
+                this.timeLeft = 60;
+                this.combo = 0;
+                this.bubblesPopped = 0;
+                this.bubbleLifetime = 4000;
+                this.updateUI();
+                this.startTimer();
+                this.spawnBubble();
+            }
+
+            spawnBubble() {
+                if (!this.gameRunning || this.bubbles.length >= this.maxBubbles) return;
+
+                // Make bubbles smaller and faster at higher levels
+                const baseSize = Math.max(30, 60 - (this.level * 2)); // Smaller bubbles at higher levels
+                const size = Math.random() * 30 + baseSize;
+                const x = Math.random() * (this.gameContainer.clientWidth - size);
+                const y = Math.random() * (this.gameContainer.clientHeight - size);
+                const color = this.colors[Math.floor(Math.random() * this.colors.length)];
+                
+                const bubble = document.createElement('div');
+                bubble.className = 'bubble spawning';
+                bubble.style.width = size + 'px';
+                bubble.style.height = size + 'px';
+                bubble.style.left = x + 'px';
+                bubble.style.top = y + 'px';
+                bubble.style.background = `radial-gradient(circle at 30% 30%, ${color}, ${this.darkenColor(color, 0.3)})`;
+                
+                // Add faster animation for higher levels
+                if (this.level > 3) {
+                    bubble.style.animationDuration = '1.5s';
+                }
+                if (this.level > 6) {
+                    bubble.style.animationDuration = '1s';
+                }
+                
+                this.gameContainer.appendChild(bubble);
+
+                const bubbleObj = {
+                    element: bubble,
+                    size: size,
+                    color: color,
+                    points: Math.floor((100 - size) / 5) + this.level // More points at higher levels
+                };
+
+                this.bubbles.push(bubbleObj);
+
+                // Bubbles disappear faster at higher levels
+                const lifetime = this.bubbleLifetime || 4000;
+                setTimeout(() => {
+                    this.removeBubble(bubbleObj, false);
+                }, lifetime);
+
+                // Schedule next bubble
+                setTimeout(() => this.spawnBubble(), this.bubbleSpeed);
+            }
+
+            popBubble(bubble) {
+                const currentTime = Date.now();
+                const timeSinceLastPop = currentTime - this.lastPopTime;
+                
+                // Play pop sound
+                this.playPopSound(bubble.size);
+                
+                if (timeSinceLastPop < 1000) {
+                    this.combo++;
+                } else {
+                    this.combo = 1;
+                }
+                
+                this.lastPopTime = currentTime;
+
+                let points = bubble.points;
+                if (this.combo > 1) {
+                    points *= this.combo;
+                    this.showCombo(bubble.element, this.combo);
+                    this.playComboSound(this.combo);
+                }
+
+                this.score += points;
+                this.bubblesPopped = (this.bubblesPopped || 0) + 1;
+                this.createParticles(bubble.element);
+                this.removeBubble(bubble, true);
+                this.updateUI();
+                
+                // Check for level up - need to pop certain number of bubbles per level
+                const bubblesNeededForLevel = this.level * 15; // 15 bubbles per level
+                if (this.bubblesPopped >= bubblesNeededForLevel) {
+                    this.level++;
+                    this.bubblesPopped = 0; // Reset counter for next level
+                    this.levelUp();
+                    this.showLevelUp();
+                    this.playLevelUpSound();
+                }
+            }
+
+            showCombo(element, combo) {
+                const comboText = document.createElement('div');
+                comboText.className = 'combo';
+                comboText.textContent = `x${combo} COMBO!`;
+                comboText.style.left = element.style.left;
+                comboText.style.top = element.style.top;
+                this.gameContainer.appendChild(comboText);
+
+                setTimeout(() => {
+                    if (comboText.parentNode) {
+                        comboText.parentNode.removeChild(comboText);
+                    }
+                }, 1000);
+            }
+
+            showLevelUp() {
+                const levelUpText = document.createElement('div');
+                levelUpText.className = 'level-up';
+                levelUpText.innerHTML = `LEVEL ${this.level}!<br><span style="font-size: 18px;">Get Ready!</span>`;
+                this.gameContainer.appendChild(levelUpText);
+
+                setTimeout(() => {
+                    if (levelUpText.parentNode) {
+                        levelUpText.parentNode.removeChild(levelUpText);
+                    }
+                }, 2000);
+            }
+
+            createParticles(element) {
+                const rect = element.getBoundingClientRect();
+                const containerRect = this.gameContainer.getBoundingClientRect();
+                const centerX = rect.left - containerRect.left + rect.width / 2;
+                const centerY = rect.top - containerRect.top + rect.height / 2;
+
+                for (let i = 0; i < 8; i++) {
+                    const particle = document.createElement('div');
+                    particle.className = 'particle';
+                    particle.style.left = centerX + 'px';
+                    particle.style.top = centerY + 'px';
+                    
+                    const angle = (i * 45) * Math.PI / 180;
+                    const distance = 50;
+                    const dx = Math.cos(angle) * distance;
+                    const dy = Math.sin(angle) * distance;
+                    
+                    particle.style.setProperty('--dx', dx + 'px');
+                    particle.style.setProperty('--dy', dy + 'px');
+                    
+                    this.gameContainer.appendChild(particle);
+                    
+                    setTimeout(() => {
+                        if (particle.parentNode) {
+                            particle.parentNode.removeChild(particle);
+                        }
+                    }, 600);
+                }
+            }
+
+            removeBubble(bubble, wasPopped) {
+                const index = this.bubbles.indexOf(bubble);
+                if (index === -1) return;
+
+                if (wasPopped) {
+                    bubble.element.classList.add('popping');
+                    setTimeout(() => {
+                        if (bubble.element.parentNode) {
+                            bubble.element.parentNode.removeChild(bubble.element);
+                        }
+                    }, 300);
+                } else {
+                    if (bubble.element.parentNode) {
+                        bubble.element.parentNode.removeChild(bubble.element);
+                    }
+                }
+
+                this.bubbles.splice(index, 1);
+            }
+
+            levelUp() {
+                // Make the game progressively harder with each level
+                this.bubbleSpeed = Math.max(300, this.bubbleSpeed - 150); // Faster bubble spawning
+                this.maxBubbles = Math.min(12, this.maxBubbles + 1); // More bubbles on screen
+                
+                // Bubbles disappear faster at higher levels
+                this.bubbleLifetime = Math.max(1500, 4000 - (this.level * 200));
+                
+                // Add bonus time, but less as levels get higher
+                const bonusTime = Math.max(5, 15 - this.level);
+                this.timeLeft += bonusTime;
+            }
+
+            startTimer() {
+                const timer = setInterval(() => {
+                    this.timeLeft--;
+                    this.updateUI();
+                    
+                    // Play tick sound for last 10 seconds
+                    if (this.timeLeft <= 10 && this.timeLeft > 0) {
+                        this.playTickSound();
+                    }
+                    
+                    if (this.timeLeft <= 0) {
+                        clearInterval(timer);
+                        this.endGame();
+                    }
+                }, 1000);
+            }
+
+            updateUI() {
+                document.getElementById('score').textContent = this.score;
+                document.getElementById('level').textContent = this.level;
+                document.getElementById('timer').textContent = this.timeLeft;
+            }
+
+            endGame() {
+                this.gameRunning = false;
+                this.playGameOverSound();
+                
+                this.bubbles.forEach(bubble => {
+                    if (bubble.element.parentNode) {
+                        bubble.element.parentNode.removeChild(bubble.element);
+                    }
+                });
+                this.bubbles = [];
+
+                document.getElementById('finalScore').textContent = this.score;
+                document.getElementById('finalLevel').textContent = this.level;
+                document.getElementById('gameOver').classList.add('show');
+            }
+
+            restart() {
+                document.getElementById('gameOver').classList.remove('show');
+                this.bubbles.forEach(bubble => {
+                    if (bubble.element.parentNode) {
+                        bubble.element.parentNode.removeChild(bubble.element);
+                    }
+                });
+                this.bubbles = [];
+                this.bubbleSpeed = 2000;
+                this.maxBubbles = 5;
+                
+                setTimeout(() => this.startGame(), 300);
+            }
+
+            darkenColor(color, amount) {
+                const hex = color.replace('#', '');
+                const r = Math.max(0, parseInt(hex.substring(0, 2), 16) - amount * 255);
+                const g = Math.max(0, parseInt(hex.substring(2, 4), 16) - amount * 255);
+                const b = Math.max(0, parseInt(hex.substring(4, 6), 16) - amount * 255);
+                return `rgb(${r}, ${g}, ${b})`;
+            }
+        }
+
+        let game;
+
+        function startGame() {
+            game = new BubblePopGame();
+        }
+
+        function restartGame() {
+            if (game) {
+                game.restart();
+            } else {
+                startGame();
+            }
+        }
+
+        // Start the game when page loads
+        window.addEventListener('load', startGame);
+
+        // Prevent zoom on double tap
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, false);
+    </script>
+</body>
+</html>
